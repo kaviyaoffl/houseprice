@@ -1,44 +1,43 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
 import os
 
-# Set up the title
-st.title("🏡 Real-Time House Price Predictor")
-st.write("Fill in the property details below.")
+st.set_page_config(page_title="House Price Predictor", layout="centered")
+st.title("🏡 House Price Predictor")
+st.markdown("Provide property details below to estimate the house price.")
 
-# Upload model if not available
+# Load model if available
 model_path = "house_price_predictor.pkl"
-model = None
+model = joblib.load(model_path) if os.path.exists(model_path) else None
 
-if not os.path.exists(model_path):
-    uploaded_file = st.file_uploader("Upload trained model (.pkl)", type="pkl")
-    if uploaded_file is not None:
-        with open(model_path, "wb") as f:
-            f.write(uploaded_file.read())
-        st.success("Model uploaded successfully. Please rerun the app.")
-else:
-    model = joblib.load(model_path)
+# Sidebar: global input
+st.sidebar.header("Global Settings")
+recent_trend = st.sidebar.slider("Recent Price Trend (%)", -5.0, 5.0, 0.0, step=0.1)
 
-# Input fields
-gr_liv_area = st.number_input("Living Area (in sq. ft)", value=1500)
-overall_qual = st.selectbox("Overall Quality (1-10)", list(range(1, 11)), index=7)
-year_built = st.number_input("Year Built", value=2000, min_value=1900, max_value=2025)
-neighborhood = st.selectbox("Neighborhood", [
-    "CollgCr", "Veenker", "Crawfor", "NoRidge", "Mitchel", "Somerst",
-    "NWAmes", "OldTown", "BrkSide", "Sawyer", "NridgHt", "NAmes"
-])
-recent_trend = st.slider("Recent Price Trend (%)", -5.0, 5.0, 0.0, step=0.1)
-property_tax = st.number_input("Annual Property Tax (USD)", value=2500)
-crime_rate = st.slider("Crime Rate (1=Low, 10=High)", 1.0, 10.0, 5.0)
-school_rating = st.slider("School Rating (1=Low, 10=High)", 1, 10, 7)
-distance_to_city = st.slider("Distance to City Center (km)", 0.5, 30.0, 5.0, step=0.5)
+# Input form
+with st.form("input_form"):
+    st.subheader("Property Details")
 
-# Feature engineering
-price_per_sqft = gr_liv_area and 1 or 0
+    col1, col2 = st.columns(2)
+    with col1:
+        gr_liv_area = st.number_input("Living Area (sq. ft)", value=1500)
+        year_built = st.number_input("Year Built", min_value=1900, max_value=2025, value=2005)
+        property_tax = st.number_input("Annual Property Tax (USD)", value=2500)
+        crime_rate = st.slider("Crime Rate (1=Low, 10=High)", 1.0, 10.0, 5.0)
 
-# Function to build input DataFrame
+    with col2:
+        overall_qual = st.selectbox("Overall Quality (1-10)", list(range(1, 11)), index=7)
+        school_rating = st.slider("School Rating (1=Low, 10=High)", 1, 10, 7)
+        distance_to_city = st.slider("Distance to City Center (km)", 0.5, 30.0, 5.0, step=0.5)
+        neighborhood = st.selectbox("Neighborhood", [
+            "CollgCr", "Veenker", "Crawfor", "NoRidge", "Mitchel", "Somerst",
+            "NWAmes", "OldTown", "BrkSide", "Sawyer", "NridgHt", "NAmes"
+        ])
+
+    submitted = st.form_submit_button("Predict House Price")
+
+# Function to make input dataframe
 def make_input_df(trend):
     return pd.DataFrame({
         "GrLivArea": [gr_liv_area],
@@ -49,27 +48,18 @@ def make_input_df(trend):
         "PropertyTax": [property_tax],
         "CrimeRate": [crime_rate],
         "SchoolRating": [school_rating],
-        "Price_per_sqft": [price_per_sqft],
+        "Price_per_sqft": [1 if gr_liv_area else 0],
         "Distance_to_city": [distance_to_city]
     })
 
-# Prediction buttons (now only generate and show input DataFrame)
-col1, col2, col3 = st.columns(3)
+# Show prediction
+if submitted:
+    input_df = make_input_df(recent_trend)
+    st.markdown("## Prediction Summary")
+    st.dataframe(input_df)
 
-with col1:
-    if st.button("Prepare Input Data"):
-        input_df = make_input_df(recent_trend)
-        st.write("### Model Input Summary")
-        st.dataframe(input_df)
-
-with col2:
-    if st.button("Optimistic Market (+3%)"):
-        input_df = make_input_df(min(recent_trend + 3, 5.0))
-        st.write("### Optimistic Market Input")
-        st.dataframe(input_df)
-
-with col3:
-    if st.button("Pessimistic Market (-3%)"):
-        input_df = make_input_df(max(recent_trend - 3, -5.0))
-        st.write("### Pessimistic Market Input")
-        st.dataframe(input_df)
+    if model:
+        prediction = model.predict(input_df)
+        st.success(f"Estimated House Price: ₹ {prediction[0]:,.2f}")
+    else:
+        st.warning("Model file not found. Please upload `house_price_predictor.pkl` to enable predictions.")
