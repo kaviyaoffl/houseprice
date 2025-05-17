@@ -8,13 +8,16 @@ from sklearn.pipeline import Pipeline
 import joblib
 import os
 
-st.set_page_config(page_title="Train House Price Model", layout="centered")
-st.title("🏗️ Train & Save House Price Prediction Model")
+st.set_page_config(page_title="House Price Prediction App", layout="centered")
+st.title("🏡 Real-Time House Price Predictor")
 
-st.markdown("Click the button below to train a sample model and generate `house_price_predictor.pkl` for use in your main app.")
+MODEL_PATH = "house_price_predictor.pkl"
 
-if st.button("Train Model & Save File"):
-    # Simulated training data
+# Step 1: Train and save model if not present
+if not os.path.exists(MODEL_PATH):
+    st.info("Training model since no .pkl file found...")
+
+    # Simulate data
     np.random.seed(42)
     n_samples = 500
     df = pd.DataFrame({
@@ -33,7 +36,6 @@ if st.button("Train Model & Save File"):
         "Distance_to_city": np.random.uniform(0.5, 30, n_samples),
     })
 
-    # Create target variable
     df["SalePrice"] = (
         df["GrLivArea"] * 120 +
         df["OverallQual"] * 5000 +
@@ -45,6 +47,7 @@ if st.button("Train Model & Save File"):
     X = df.drop("SalePrice", axis=1)
     y = df["SalePrice"]
 
+    # Pipeline
     categorical = ["Neighborhood"]
     numeric = [col for col in X.columns if col not in categorical]
 
@@ -52,14 +55,59 @@ if st.button("Train Model & Save File"):
         ("cat", OneHotEncoder(handle_unknown="ignore"), categorical)
     ], remainder="passthrough")
 
-    pipeline = Pipeline([
+    model = Pipeline([
         ("preprocessor", preprocessor),
         ("regressor", RandomForestRegressor(n_estimators=100, random_state=42))
     ])
 
-    pipeline.fit(X, y)
+    model.fit(X, y)
+    joblib.dump(model, MODEL_PATH)
+    st.success("Model trained and saved!")
 
-    joblib.dump(pipeline, "house_price_predictor.pkl")
+# Step 2: Load model
+model = joblib.load(MODEL_PATH)
 
-    st.success("✅ Model trained and saved as `house_price_predictor.pkl`!")
-    st.info("You can now use this file in your House Price Prediction App.")
+# Step 3: Input interface
+st.markdown("### Enter House Details")
+
+with st.form("predict_form"):
+    col1, col2 = st.columns(2)
+
+    with col1:
+        gr_liv_area = st.number_input("Living Area (sq. ft)", value=1500)
+        year_built = st.number_input("Year Built", min_value=1900, max_value=2025, value=2005)
+        property_tax = st.number_input("Annual Property Tax (USD)", value=2500)
+        crime_rate = st.slider("Crime Rate (1=Low, 10=High)", 1.0, 10.0, 5.0)
+
+    with col2:
+        overall_qual = st.selectbox("Overall Quality (1-10)", list(range(1, 11)), index=7)
+        school_rating = st.slider("School Rating (1=Low, 10=High)", 1, 10, 7)
+        distance_to_city = st.slider("Distance to City Center (km)", 0.5, 30.0, 5.0, step=0.5)
+        neighborhood = st.selectbox("Neighborhood", [
+            "CollgCr", "Veenker", "Crawfor", "NoRidge", "Mitchel", "Somerst",
+            "NWAmes", "OldTown", "BrkSide", "Sawyer", "NridgHt", "NAmes"
+        ])
+    
+    recent_trend = st.slider("Recent Price Trend (%)", -5.0, 5.0, 0.0, step=0.1)
+
+    submitted = st.form_submit_button("Predict House Price")
+
+# Step 4: Prediction
+if submitted:
+    input_df = pd.DataFrame({
+        "GrLivArea": [gr_liv_area],
+        "OverallQual": [overall_qual],
+        "YearBuilt": [year_built],
+        "Neighborhood": [neighborhood],
+        "RecentPriceTrend": [recent_trend],
+        "PropertyTax": [property_tax],
+        "CrimeRate": [crime_rate],
+        "SchoolRating": [school_rating],
+        "Price_per_sqft": [1 if gr_liv_area else 0],
+        "Distance_to_city": [distance_to_city]
+    })
+
+    prediction = model.predict(input_df)[0]
+    st.success(f"Estimated House Price: ₹ {prediction:,.2f}")
+    st.markdown("### Input Summary")
+    st.dataframe(input_df)
