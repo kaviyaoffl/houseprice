@@ -6,7 +6,7 @@ import os
 
 # Set up the title
 st.title("🏡 Real-Time House Price Predictor")
-st.write("Fill in the property details below to get an estimated house price.")
+st.write("Fill in the property details below.")
 
 # Upload model if not available
 model_path = "house_price_predictor.pkl"
@@ -53,29 +53,23 @@ def make_input_df(trend):
         "Distance_to_city": [distance_to_city]
     })
 
-# Prediction function
-def predict_house_price(input_df):
-    if model:
-        prediction = model.predict(input_df)
-        st.success(f"Estimated House Price: ₹ {prediction[0]:,.2f}")
-        st.markdown("---")
-        st.write("### Model Input Summary")
-        st.dataframe(input_df)
-
-# Prediction buttons
+# Prediction buttons (now only generate and show input DataFrame)
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("Predict House Price"):
+    if st.button("Prepare Input Data"):
         input_df = make_input_df(recent_trend)
-        predict_house_price(input_df)
+        st.write("### Model Input Summary")
+        st.dataframe(input_df)
 
 with col2:
     if st.button("Optimistic Market (+3%)"):
         input_df = make_input_df(min(recent_trend + 3, 5.0))
-        predict_house_price(input_df)
+        st.write("### Optimistic Market Input")
+        st.dataframe(input_df)
 
 with col3:
     if st.button("Pessimistic Market (-3%)"):
         input_df = make_input_df(max(recent_trend - 3, -5.0))
-        predict_house_price(input_df)
+        st.write("### Pessimistic Market Input")
+        st.dataframe(input_df)
