@@ -4,17 +4,22 @@ import numpy as np
 import joblib
 import os
 
-# Load the trained model
+# Set up the title
+st.title("🏡 Real-Time House Price Predictor")
+st.write("Fill in the property details below to get an estimated house price.")
+
+# Upload model if not available
 model_path = "house_price_predictor.pkl"
 model = None
 
-if os.path.exists(model_path):
-    model = joblib.load(model_path)
+if not os.path.exists(model_path):
+    uploaded_file = st.file_uploader("Upload trained model (.pkl)", type="pkl")
+    if uploaded_file is not None:
+        with open(model_path, "wb") as f:
+            f.write(uploaded_file.read())
+        st.success("Model uploaded successfully. Please rerun the app.")
 else:
-    st.error("Model file 'house_price_predictor.pkl' not found. Please upload the file to continue.")
-
-st.title("🏡 Real-Time House Price Predictor")
-st.write("Fill in the property details below to get an estimated house price.")
+    model = joblib.load(model_path)
 
 # Input fields
 gr_liv_area = st.number_input("Living Area (in sq. ft)", value=1500)
@@ -33,7 +38,7 @@ distance_to_city = st.slider("Distance to City Center (km)", 0.5, 30.0, 5.0, ste
 # Feature engineering
 price_per_sqft = gr_liv_area and 1 or 0
 
-# Function to create input dataframe
+# Function to build input DataFrame
 def make_input_df(trend):
     return pd.DataFrame({
         "GrLivArea": [gr_liv_area],
@@ -48,7 +53,7 @@ def make_input_df(trend):
         "Distance_to_city": [distance_to_city]
     })
 
-# Main prediction logic
+# Prediction function
 def predict_house_price(input_df):
     if model:
         prediction = model.predict(input_df)
@@ -56,10 +61,8 @@ def predict_house_price(input_df):
         st.markdown("---")
         st.write("### Model Input Summary")
         st.dataframe(input_df)
-    else:
-        st.warning("Model is not loaded. Please upload the model file.")
 
-# Buttons
+# Prediction buttons
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -68,11 +71,11 @@ with col1:
         predict_house_price(input_df)
 
 with col2:
-    if st.button("Predict with Optimistic Market Trend"):
+    if st.button("Optimistic Market (+3%)"):
         input_df = make_input_df(min(recent_trend + 3, 5.0))
         predict_house_price(input_df)
 
 with col3:
-    if st.button("Predict with Pessimistic Market Trend"):
+    if st.button("Pessimistic Market (-3%)"):
         input_df = make_input_df(max(recent_trend - 3, -5.0))
         predict_house_price(input_df)
